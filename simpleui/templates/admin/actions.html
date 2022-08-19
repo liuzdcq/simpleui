@@ -98,6 +98,25 @@
             :visible.sync="visible"
             :width="layer.width||'50%'">
         <el-alert v-if="layer.tips" :title="layer.tips" type="success" :closable="false"></el-alert>
+        <h2 v-if="table && table.title" v-text="table.title"></h2>
+        <el-table v-if="table" :data="tableData" max-height="300">
+            <el-table-column v-for="th in table.columns"
+                :label="th.label">
+                <template slot-scope="scope">
+                    <span v-if="th.html" v-html="scope.row[th.prop]"></span>
+                    <span v-else-if="th.img">
+                      <el-image
+                        style="width: 100px; height: 50px"
+                        :z-index="3000"
+                        :src="scope.row[th.prop]"
+                        :preview-src-list="[scope.row[th.prop]]">
+                      </el-image>
+                    </span>
+                    <span v-else v-text="scope.row[th.prop]"></span>
+                </template>
+            </el-table-column>
+        </el-table>
+        <divider v-if="table" style="margin-top:10px; margin-bottom: 10px; display: inline-block;"></divider>
         <el-form ref="form" :model="params" :label-width="layer.labelWidth||'80px'" size="small">
             <el-form-item v-for="item in params" :label="item.label"
                           :rules="[{ required: item.require||false, trigger: 'blur' }]">
@@ -206,7 +225,10 @@
             params: [],
             layer: {},
             rules: [],
-            action: ''
+            action: '',
+            chooseOneRow: false,
+            table: null,
+            tableData: []
         },
         methods: {
             layerSubmit() {
@@ -216,7 +238,7 @@
                     let item = self.params[key];
                     if (item.require) {
                         if (!item.value || item.value == '' || item.length == 0) {
-                            self.$message.error(`"${item.label}" Can't be empty.`)
+                            self.$message.error(`"${item.label}" 不能为空.`)
                             return;
                         }
                     }
@@ -262,12 +284,40 @@
         layerApp.layer = data.layer;
         layerApp.title = data.layer.title;
         layerApp.params = data.layer.params;
+        layerApp.chooseOneRow = data.layer.chooseOneRow;
+        layerApp.table = data.layer.table;
         layerApp.action = action;
 
         layerApp.$nextTick(() => {
+            let selecteds = [];
+            $("#result_list .selected input[name='_selected_action']").each((index, item) => selecteds.push(item.value));
+            if(layerApp.chooseOneRow) {
+                if(selecteds.length !== 1) {
+                    new Vue().$alert(getLanuage("请选中一个选项!"), '', {
+                        type: 'warning'
+                    })
+                    return
+                } else {
+                    layerApp.title = data.layer.title + '(ID: ' + selecteds[0] + ')'
+                }
+            }
             layerApp.visible = true;
+            if(layerApp.table) {
+                initTable(layerApp, selecteds)
+            }
         });
+    }
 
+    function initTable(layerApp, selecteds) {
+        let data = new FormData();
+        data.append('_action', layerApp.table.action);
+        data.append('_selected', selecteds);
+        data.append('csrfmiddlewaretoken', document.querySelector('[name="csrfmiddlewaretoken"]').value);
+        axios.post('{% get_model_ajax_url %}'+window.location.search, data).then(res => {
+            if (res.data.status == 'success') {
+                layerApp.tableData = res.data.body
+            }
+        }).catch(err => self.$message.error(err));
     }
 
     function actionsCleaning(name) {
