@@ -433,6 +433,9 @@ def search_placeholder(context):
         if isinstance(f, ForeignKey):
             fields.extend(get_model_fields(f.related_model, f.name))
 
+    for o in cl.model._meta.related_objects:
+        fields.extend(get_model_fields(o.related_model, o.name))
+
     verboses = []
 
     for s in cl.search_fields:
